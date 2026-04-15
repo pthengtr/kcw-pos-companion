@@ -1,4 +1,3 @@
-# Placeholder for future Supabase lookup service
 from __future__ import annotations
 
 import os
@@ -35,8 +34,59 @@ class ProductService:
         if not rows:
             return None
 
-        row = rows[0]
+        return self._row_to_product(rows[0])
 
+    def get_related_products(self, bcode: str) -> list[Product]:
+        group_resp = (
+            self.client.table("product_related_group_map")
+            .select("related_group_id")
+            .eq("bcode", bcode)
+            .limit(1)
+            .execute()
+        )
+
+        group_rows = group_resp.data or []
+        if not group_rows:
+            return []
+
+        group_id = group_rows[0]["related_group_id"]
+
+        related_resp = (
+            self.client.table("product_related_group_map")
+            .select("bcode")
+            .eq("related_group_id", group_id)
+            .neq("bcode", bcode)
+            .execute()
+        )
+
+        related_rows = related_resp.data or []
+        if not related_rows:
+            return []
+
+        related_bcodes = [row["bcode"] for row in related_rows][:3]
+
+        product_resp = (
+            self.client.table("v_pos_products_hq")
+            .select("BCODE, DESCR, MODEL, BRAND, PRICE1")
+            .in_("BCODE", related_bcodes)
+            .execute()
+        )
+
+        product_rows = product_resp.data or []
+        product_map = {
+            str(row["BCODE"]): self._row_to_product(row)
+            for row in product_rows
+        }
+
+        ordered_products: list[Product] = []
+        for code in related_bcodes:
+            product = product_map.get(str(code))
+            if product is not None:
+                ordered_products.append(product)
+
+        return ordered_products
+
+    def _row_to_product(self, row: dict) -> Product:
         return Product(
             bcode=str(row.get("BCODE", "")),
             descr=row.get("DESCR"),

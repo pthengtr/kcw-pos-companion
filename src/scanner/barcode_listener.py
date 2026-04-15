@@ -26,6 +26,7 @@ class BarcodeListener:
         self._lock = threading.Lock()
 
     def start(self) -> None:
+        print("BarcodeListener.start()")
         self._listener = keyboard.Listener(on_press=self._on_press)
         self._listener.daemon = True
         self._listener.start()
@@ -46,13 +47,20 @@ class BarcodeListener:
 
             if key == keyboard.Key.enter:
                 barcode = "".join(self._buffer).strip()
+                print(f"ENTER pressed, candidate barcode={barcode!r}")
                 self._buffer.clear()
 
                 if self._is_valid_barcode(barcode):
+                    print(f"VALID BARCODE: {barcode}")
                     self.on_barcode(barcode)
+                else:
+                    print(f"INVALID BARCODE: {barcode!r}")
                 return
 
             char = getattr(key, "char", None)
+            # if char:
+            #     print(f"KEY: {char!r}")
+
             if char and char.isdigit():
                 self._buffer.append(char)
 

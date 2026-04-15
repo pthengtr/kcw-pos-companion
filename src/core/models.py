@@ -1,4 +1,3 @@
-# Placeholder for future dataclasses / DTOs
 from dataclasses import dataclass
 from typing import Optional
 
