@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Qt, Signal, QThread
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -27,183 +28,225 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("KCW POS Companion")
+        self.resize(430, 760)
+        self.setMinimumWidth(390)
+        self.setMaximumWidth(540)
 
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-        self.show()
-
-        self.resize(420, 760)
-        self.setMinimumWidth(380)
-        self.setMaximumWidth(520)
-
-        self._latest_requested_barcode: str | None = None
         self._always_on_top = True
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        self._latest_requested_barcode: str | None = None
 
-        # ===== Top row =====
-        self.status_label = QLabel("พร้อมใช้งาน")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.status_label.setStyleSheet(
+        self.setStyleSheet(
             """
-            font-size: 14px;
-            font-weight: 700;
-            color: #0a7f42;
-            padding: 6px 0;
+            QMainWindow {
+                background-color: #f5f7fb;
+            }
+            QLabel {
+                color: #1f2937;
+            }
+            QFrame#Card {
+                background-color: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+            }
+            QLineEdit {
+                background-color: #ffffff;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 8px 10px;
+                color: #111827;
+            }
+            QLineEdit:focus {
+                border: 1px solid #3b82f6;
+            }
             """
         )
+
+        central = QWidget()
+        self.setCentralWidget(central)
+
+        root = QVBoxLayout(central)
+        root.setContentsMargins(14, 14, 14, 14)
+        root.setSpacing(10)
+
+        # ===== Header =====
+        header_card = self._make_card()
+        header_layout = QHBoxLayout(header_card)
+        header_layout.setContentsMargins(12, 10, 12, 10)
+        header_layout.setSpacing(8)
+
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(2)
+
+        self.header_title = QLabel("KCW POS Companion")
+        self.header_title.setStyleSheet(
+            "font-size: 15px; font-weight: 700; color: #111827;"
+        )
+
+        self.status_label = QLabel("พร้อมใช้งาน")
+        self.status_label.setStyleSheet(
+            "font-size: 12px; font-weight: 600; color: #0a7f42;"
+        )
+
+        title_layout.addWidget(self.header_title)
+        title_layout.addWidget(self.status_label)
 
         self.pin_button = QPushButton("ปักหมุด")
-        self.pin_button.setFixedHeight(34)
-        self.pin_button.setStyleSheet(
-            """
-            QPushButton {
-                font-size: 13px;
-                font-weight: 700;
-                padding: 6px 10px;
-                background-color: #444;
-                color: white;
-                border: none;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-            }
-            """
-        )
+        self.pin_button.setFixedHeight(32)
+        self.pin_button.setStyleSheet(self._pin_button_style(True))
         self.pin_button.clicked.connect(self.toggle_always_on_top)
 
         self.clear_button = QPushButton("ล้างผล")
-        self.clear_button.setFixedHeight(34)
+        self.clear_button.setFixedHeight(32)
         self.clear_button.setStyleSheet(
             """
             QPushButton {
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 700;
-                padding: 6px 10px;
-                background-color: #d9534f;
+                padding: 0 12px;
+                background-color: #ef4444;
                 color: white;
                 border: none;
-                border-radius: 6px;
+                border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #c9302c;
+                background-color: #dc2626;
+            }
+            QPushButton:disabled {
+                background-color: #fca5a5;
+                color: #ffffff;
             }
             """
         )
         self.clear_button.clicked.connect(self.on_clear_clicked)
 
-        status_row = QHBoxLayout()
-        status_row.setSpacing(6)
-        status_row.addWidget(self.status_label)
-        status_row.addStretch()
-        status_row.addWidget(self.pin_button)
-        status_row.addWidget(self.clear_button)
+        header_layout.addLayout(title_layout)
+        header_layout.addStretch()
+        header_layout.addWidget(self.pin_button)
+        header_layout.addWidget(self.clear_button)
 
-        # ===== Manual input =====
+        # ===== Search Card =====
+        search_card = self._make_card()
+        search_layout = QVBoxLayout(search_card)
+        search_layout.setContentsMargins(12, 12, 12, 12)
+        search_layout.setSpacing(8)
+
         self.manual_title = QLabel("กรอกรหัสสินค้า / BCODE")
         self.manual_title.setStyleSheet(
-            "font-size: 16px; font-weight: 700; padding-top: 4px;"
+            "font-size: 13px; font-weight: 700; color: #374151;"
         )
+
+        input_row = QHBoxLayout()
+        input_row.setSpacing(8)
 
         self.manual_input = QLineEdit()
         self.manual_input.setPlaceholderText("กรอก BCODE 8 หลัก")
         self.manual_input.setMaxLength(8)
         self.manual_input.setValidator(QIntValidator(0, 99999999, self))
+        self.manual_input.setMinimumHeight(38)
         self.manual_input.setStyleSheet(
             """
-            font-size: 16px;
-            padding: 8px 10px;
-            min-height: 38px;
-            border: 1px solid #cccccc;
-            border-radius: 6px;
+            QLineEdit {
+                font-size: 15px;
+                font-weight: 600;
+            }
             """
         )
         self.manual_input.returnPressed.connect(self.on_manual_submit)
 
         self.search_button = QPushButton("ค้นหา")
+        self.search_button.setMinimumHeight(38)
         self.search_button.setStyleSheet(
             """
-            font-size: 15px;
-            font-weight: 700;
-            padding: 8px 12px;
-            min-height: 38px;
-            background-color: #2d6cdf;
-            color: white;
-            border: none;
-            border-radius: 6px;
+            QPushButton {
+                font-size: 13px;
+                font-weight: 700;
+                padding: 0 14px;
+                background-color: #2563eb;
+                color: white;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QPushButton:disabled {
+                background-color: #93c5fd;
+                color: #ffffff;
+            }
             """
         )
         self.search_button.clicked.connect(self.on_manual_submit)
 
-        manual_row = QHBoxLayout()
-        manual_row.setSpacing(8)
-        manual_row.addWidget(self.manual_input, stretch=1)
-        manual_row.addWidget(self.search_button)
+        input_row.addWidget(self.manual_input, 1)
+        input_row.addWidget(self.search_button)
 
-        # ===== Scanned product =====
+        search_layout.addWidget(self.manual_title)
+        search_layout.addLayout(input_row)
+
+        # ===== Current Product Card =====
+        current_card = self._make_card()
+        current_layout = QVBoxLayout(current_card)
+        current_layout.setContentsMargins(12, 12, 12, 12)
+        current_layout.setSpacing(8)
+
         self.scanned_title = QLabel("สินค้าที่สแกน")
         self.scanned_title.setStyleSheet(
-            "font-size: 18px; font-weight: 700; padding-top: 10px;"
+            "font-size: 13px; font-weight: 700; color: #374151;"
         )
-
-        self.current_divider = QLabel("")
-        self.current_divider.setFixedHeight(2)
-        self.current_divider.setStyleSheet("background-color: #dddddd;")
 
         self.current_product_label = QLabel("")
         self.current_product_label.setWordWrap(True)
         self.current_product_label.setTextFormat(Qt.TextFormat.RichText)
-        self.current_product_label.setStyleSheet(
-            """
-            font-size: 14px;
-            padding: 8px 0 10px 0;
-            """
-        )
+        self.current_product_label.setStyleSheet("font-size: 14px; color: #111827;")
 
-        # ===== Related products =====
+        current_layout.addWidget(self.scanned_title)
+        current_layout.addWidget(self.current_product_label)
+
+        # ===== Related Products Card =====
+        related_card = self._make_card()
+        related_layout = QVBoxLayout(related_card)
+        related_layout.setContentsMargins(12, 12, 12, 12)
+        related_layout.setSpacing(8)
+
         self.related_title = QLabel("นิยมซื้อด้วยกัน")
         self.related_title.setStyleSheet(
-            "font-size: 18px; font-weight: 700; padding-top: 8px;"
+            "font-size: 13px; font-weight: 700; color: #374151;"
         )
 
-        self.related_divider = QLabel("")
-        self.related_divider.setFixedHeight(2)
-        self.related_divider.setStyleSheet("background-color: #dddddd;")
+        self.related_empty_label = QLabel("ยังไม่มีสินค้าที่เกี่ยวข้อง")
+        self.related_empty_label.setStyleSheet(
+            "font-size: 12px; color: #9ca3af; padding: 4px 0;"
+        )
+
+        related_layout.addWidget(self.related_title)
+        related_layout.addWidget(self.related_empty_label)
 
         self.related_product_labels: list[QLabel] = []
         for _ in range(3):
-            label = QLabel("-")
+            label = QLabel("")
             label.setWordWrap(True)
             label.setTextFormat(Qt.TextFormat.RichText)
             label.setStyleSheet(
                 """
-                font-size: 14px;
-                padding: 6px 0;
+                QLabel {
+                    background-color: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 10px;
+                    padding: 8px;
+                    color: #111827;
+                }
                 """
             )
             label.hide()
             self.related_product_labels.append(label)
+            related_layout.addWidget(label)
 
-        # ===== Main layout =====
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
-
-        layout.addLayout(status_row)
-        layout.addWidget(self.manual_title)
-        layout.addLayout(manual_row)
-        layout.addSpacing(4)
-        layout.addWidget(self.scanned_title)
-        layout.addWidget(self.current_divider)
-        layout.addWidget(self.current_product_label)
-        layout.addWidget(self.related_title)
-        layout.addWidget(self.related_divider)
-
-        for label in self.related_product_labels:
-            layout.addWidget(label)
-
-        layout.addStretch()
-
-        self.setCentralWidget(container)
+        root.addWidget(header_card)
+        root.addWidget(search_card)
+        root.addWidget(current_card)
+        root.addWidget(related_card)
+        root.addStretch()
 
         # ===== Barcode bridge =====
         self.bridge = BarcodeBridge()
@@ -226,6 +269,49 @@ class MainWindow(QMainWindow):
 
         self.manual_input.setFocus()
 
+    def _make_card(self) -> QFrame:
+        card = QFrame()
+        card.setObjectName("Card")
+        return card
+
+    def _pin_button_style(self, pinned: bool) -> str:
+        if pinned:
+            return """
+                QPushButton {
+                    font-size: 12px;
+                    font-weight: 700;
+                    padding: 0 12px;
+                    background-color: #374151;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #1f2937;
+                }
+            """
+        return """
+            QPushButton {
+                font-size: 12px;
+                font-weight: 700;
+                padding: 0 12px;
+                background-color: #9ca3af;
+                color: white;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #6b7280;
+            }
+        """
+
+    def toggle_always_on_top(self) -> None:
+        self._always_on_top = not self._always_on_top
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, self._always_on_top)
+        self.show()
+        self.pin_button.setText("ปักหมุด" if self._always_on_top else "ไม่ปักหมุด")
+        self.pin_button.setStyleSheet(self._pin_button_style(self._always_on_top))
+
     def handle_barcode_from_listener(self, barcode: str) -> None:
         self.bridge.barcode_detected.emit(barcode)
 
@@ -242,11 +328,10 @@ class MainWindow(QMainWindow):
         self._latest_requested_barcode = barcode
         self.manual_input.setText(barcode)
 
-        # Show immediate feedback before lookup returns
         self.current_product_label.setText(
             (
-                f"<div style='font-size:18px; font-weight:700; color:#222;'>กำลังค้นหา...</div>"
-                f"<div style='font-size:13px; margin-top:3px; color:#666;'>{barcode}</div>"
+                f"<div style='font-size:13px; color:#6b7280;'>กำลังค้นหา</div>"
+                f"<div style='font-size:18px; font-weight:700; color:#111827; margin-top:2px;'>{barcode}</div>"
             )
         )
         self._render_related_products([])
@@ -294,16 +379,11 @@ class MainWindow(QMainWindow):
         if state == "loading":
             color = "#9a6700"
         elif state == "error":
-            color = "#c0392b"
+            color = "#dc2626"
 
         self.status_label.setText(text)
         self.status_label.setStyleSheet(
-            f"""
-            font-size: 14px;
-            font-weight: 700;
-            color: {color};
-            padding: 4px 0;
-            """
+            f"font-size: 12px; font-weight: 600; color: {color};"
         )
 
     def _format_current_product(self, product: Product) -> str:
@@ -313,11 +393,11 @@ class MainWindow(QMainWindow):
         price = self._format_price(product.price1)
 
         return (
-            f"<div style='font-size:18px; font-weight:700; color:#222;'>{descr}</div>"
-            f"<div style='font-size:13px; margin-top:3px; color:#666;'>"
-            f"{product.bcode} • {model} • {brand}"
+            f"<div style='font-size:20px; font-weight:700; color:#111827;'>{descr}</div>"
+            f"<div style='font-size:12px; color:#6b7280; margin-top:4px;'>"
+            f"BCODE {product.bcode} • {model} • {brand}"
             f"</div>"
-            f"<div style='font-size:20px; font-weight:700; margin-top:8px; color:#0a7f42;'>"
+            f"<div style='font-size:22px; font-weight:700; color:#0a7f42; margin-top:10px;'>"
             f"฿ {price}"
             f"</div>"
         )
@@ -327,28 +407,33 @@ class MainWindow(QMainWindow):
         price = self._format_price(product.price1)
 
         return (
-            f"<div style='font-size:15px;'>"
-            f"<span style='font-weight:700; color:#333;'>{idx + 1}.</span> "
-            f"<span style='font-weight:700; color:#111;'>{product.bcode}</span>"
+            f"<div style='font-size:12px; color:#6b7280;'>แนะนำ {idx + 1}</div>"
+            f"<div style='font-size:14px; font-weight:700; color:#111827; margin-top:2px;'>"
+            f"{product.bcode}"
             f"</div>"
-            f"<div style='font-size:14px; color:#222; margin-top:2px; margin-left:16px;'>"
+            f"<div style='font-size:13px; color:#1f2937; margin-top:2px;'>"
             f"{descr}"
             f"</div>"
-            f"<div style='font-size:15px; font-weight:700; color:#0a7f42; margin-top:3px; margin-left:16px;'>"
+            f"<div style='font-size:15px; font-weight:700; color:#0a7f42; margin-top:6px;'>"
             f"฿ {price}"
             f"</div>"
         )
 
     def _render_related_products(self, products: list[Product]) -> None:
+        has_products = len(products) > 0
+        self.related_empty_label.setVisible(not has_products)
+
         for idx, label in enumerate(self.related_product_labels):
             if idx < len(products):
                 label.setText(self._format_related_product(products[idx], idx))
                 label.show()
             else:
+                label.setText("")
                 label.hide()
 
     def _clear_result_fields(self) -> None:
         self.current_product_label.setText("")
+        self.related_empty_label.setVisible(True)
 
         for label in self.related_product_labels:
             label.setText("")
@@ -374,43 +459,3 @@ class MainWindow(QMainWindow):
         self.lookup_thread.quit()
         self.lookup_thread.wait()
         super().closeEvent(event)
-
-    def toggle_always_on_top(self) -> None:
-        self._always_on_top = not self._always_on_top
-
-        self.setWindowFlag(
-            Qt.WindowType.WindowStaysOnTopHint,
-            self._always_on_top
-        )
-
-        # IMPORTANT: re-show window to apply change
-        self.show()
-
-        if self._always_on_top:
-            self.pin_button.setText("📌 ปักหมุด")
-            self.pin_button.setStyleSheet(
-                """
-                font-size: 14px;
-                font-weight: 700;
-                padding: 6px 10px;
-                min-height: 32px;
-                background-color: #555;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                """
-            )
-        else:
-            self.pin_button.setText("ปลดหมุด")
-            self.pin_button.setStyleSheet(
-                """
-                font-size: 14px;
-                font-weight: 700;
-                padding: 6px 10px;
-                min-height: 32px;
-                background-color: #999;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                """
-            )
