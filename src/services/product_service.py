@@ -37,11 +37,11 @@ class ProductService:
         return self._row_to_product(rows[0])
 
     def get_related_products(self, bcode: str) -> list[Product]:
+        # Step 1: find all groups for this bcode
         group_resp = (
             self.client.table("product_related_group_map")
             .select("related_group_id")
             .eq("bcode", bcode)
-            .limit(1)
             .execute()
         )
 
@@ -49,12 +49,23 @@ class ProductService:
         if not group_rows:
             return []
 
-        group_id = group_rows[0]["related_group_id"]
+        group_ids = []
+        seen_group_ids = set()
 
+        for row in group_rows:
+            group_id = row.get("related_group_id")
+            if group_id and group_id not in seen_group_ids:
+                seen_group_ids.add(group_id)
+                group_ids.append(group_id)
+
+        if not group_ids:
+            return []
+
+        # Step 2: find all bcodes from all those groups
         related_resp = (
             self.client.table("product_related_group_map")
-            .select("bcode")
-            .eq("related_group_id", group_id)
+            .select("bcode, related_group_id")
+            .in_("related_group_id", group_ids)
             .neq("bcode", bcode)
             .execute()
         )
@@ -63,8 +74,20 @@ class ProductService:
         if not related_rows:
             return []
 
-        related_bcodes = [row["bcode"] for row in related_rows][:3]
+        # Step 3: deduplicate bcodes, first level only
+        related_bcodes = []
+        seen_bcodes = set()
 
+        for row in related_rows:
+            related_code = str(row.get("bcode", "")).strip()
+            if related_code and related_code != bcode and related_code not in seen_bcodes:
+                seen_bcodes.add(related_code)
+                related_bcodes.append(related_code)
+
+        if not related_bcodes:
+            return []
+
+        # Step 4: fetch product details
         product_resp = (
             self.client.table("v_pos_products_hq")
             .select("BCODE, DESCR, MODEL, BRAND, PRICE1")
@@ -73,14 +96,18 @@ class ProductService:
         )
 
         product_rows = product_resp.data or []
+        if not product_rows:
+            return []
+
         product_map = {
             str(row["BCODE"]): self._row_to_product(row)
             for row in product_rows
         }
 
+        # Step 5: preserve discovered order
         ordered_products: list[Product] = []
         for code in related_bcodes:
-            product = product_map.get(str(code))
+            product = product_map.get(code)
             if product is not None:
                 ordered_products.append(product)
 

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    QScrollArea
 )
 
 from src.core.models import Product
@@ -41,14 +42,17 @@ class MainWindow(QMainWindow):
             QMainWindow {
                 background-color: #f5f7fb;
             }
+
             QLabel {
                 color: #1f2937;
             }
+
             QFrame#Card {
                 background-color: #ffffff;
                 border: 1px solid #e5e7eb;
                 border-radius: 12px;
             }
+
             QLineEdit {
                 background-color: #ffffff;
                 border: 1px solid #d1d5db;
@@ -56,8 +60,35 @@ class MainWindow(QMainWindow):
                 padding: 8px 10px;
                 color: #111827;
             }
+
             QLineEdit:focus {
                 border: 1px solid #3b82f6;
+            }
+
+            /* Scroll Area */
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+
+            /* Scrollbar */
+            QScrollBar:vertical {
+                width: 6px;
+                background: transparent;
+            }
+
+            QScrollBar::handle:vertical {
+                background: #d1d5db;
+                border-radius: 3px;
+            }
+
+            QScrollBar::handle:vertical:hover {
+                background: #9ca3af;
+            }
+
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                height: 0;
             }
             """
         )
@@ -219,28 +250,23 @@ class MainWindow(QMainWindow):
             "font-size: 12px; color: #9ca3af; padding: 4px 0;"
         )
 
+        # Scroll area for related items
+        self.related_scroll = QScrollArea()
+        self.related_scroll.setWidgetResizable(True)
+        self.related_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.related_scroll.setFrameShape(QFrame.NoFrame)
+        self.related_scroll.setMinimumHeight(520)
+
+        self.related_items_container = QWidget()
+        self.related_items_layout = QVBoxLayout(self.related_items_container)
+        self.related_items_layout.setContentsMargins(0, 0, 0, 0)
+        self.related_items_layout.setSpacing(8)
+
+        self.related_scroll.setWidget(self.related_items_container)
+
         related_layout.addWidget(self.related_title)
         related_layout.addWidget(self.related_empty_label)
-
-        self.related_product_labels: list[QLabel] = []
-        for _ in range(3):
-            label = QLabel("")
-            label.setWordWrap(True)
-            label.setTextFormat(Qt.TextFormat.RichText)
-            label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #f9fafb;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 10px;
-                    padding: 8px;
-                    color: #111827;
-                }
-                """
-            )
-            label.hide()
-            self.related_product_labels.append(label)
-            related_layout.addWidget(label)
+        related_layout.addWidget(self.related_scroll)
 
         root.addWidget(header_card)
         root.addWidget(search_card)
@@ -359,7 +385,7 @@ class MainWindow(QMainWindow):
         self.current_product_label.setText(
             self._format_current_product(current_product)
         )
-        self._render_related_products(related_products[:3])
+        self._render_related_products(related_products)
 
     def on_lookup_error(self, barcode: str, message: str) -> None:
         if barcode != self._latest_requested_barcode:
@@ -404,6 +430,8 @@ class MainWindow(QMainWindow):
 
     def _format_related_product(self, product: Product, idx: int) -> str:
         descr = product.descr or "-"
+        model = product.model or "-"
+        brand = product.brand or "-"
         price = self._format_price(product.price1)
 
         return (
@@ -414,30 +442,49 @@ class MainWindow(QMainWindow):
             f"<div style='font-size:13px; color:#1f2937; margin-top:2px;'>"
             f"{descr}"
             f"</div>"
+            f"<div style='font-size:12px; color:#6b7280; margin-top:2px;'>"
+            f"{model} • {brand}"
+            f"</div>"
             f"<div style='font-size:15px; font-weight:700; color:#0a7f42; margin-top:6px;'>"
             f"฿ {price}"
             f"</div>"
         )
 
+    def _clear_related_items_layout(self) -> None:
+        while self.related_items_layout.count():
+            item = self.related_items_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
     def _render_related_products(self, products: list[Product]) -> None:
+        self._clear_related_items_layout()
+
         has_products = len(products) > 0
         self.related_empty_label.setVisible(not has_products)
 
-        for idx, label in enumerate(self.related_product_labels):
-            if idx < len(products):
-                label.setText(self._format_related_product(products[idx], idx))
-                label.show()
-            else:
-                label.setText("")
-                label.hide()
+        for idx, product in enumerate(products):
+            label = QLabel()
+            label.setWordWrap(True)
+            label.setTextFormat(Qt.TextFormat.RichText)
+            label.setStyleSheet(
+                """
+                QLabel {
+                    background-color: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 10px;
+                    padding: 8px;
+                    color: #111827;
+                }
+                """
+            )
+            label.setText(self._format_related_product(product, idx))
+            self.related_items_layout.addWidget(label)
 
     def _clear_result_fields(self) -> None:
         self.current_product_label.setText("")
         self.related_empty_label.setVisible(True)
-
-        for label in self.related_product_labels:
-            label.setText("")
-            label.hide()
+        self._clear_related_items_layout()
 
     def on_clear_clicked(self) -> None:
         self._latest_requested_barcode = None
