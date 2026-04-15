@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import string
+import re
 import threading
 import time
 from collections.abc import Callable
 from typing import Optional
-import re
 
 from pynput import keyboard
 
@@ -15,13 +14,11 @@ class BarcodeListener:
         self,
         on_barcode: Callable[[str], None],
         timeout_seconds: float = 0.08,
-        min_length: int = 6,
-        max_length: int = 32,
+        expected_length: int = 8,
     ) -> None:
         self.on_barcode = on_barcode
         self.timeout_seconds = timeout_seconds
-        self.min_length = min_length
-        self.max_length = max_length
+        self.expected_length = expected_length
 
         self._buffer: list[str] = []
         self._last_key_time: float = 0.0
@@ -51,21 +48,13 @@ class BarcodeListener:
                 barcode = "".join(self._buffer).strip()
                 self._buffer.clear()
 
-                print(f"ENTER received, buffer={self._buffer}")
                 if self._is_valid_barcode(barcode):
                     self.on_barcode(barcode)
                 return
 
             char = getattr(key, "char", None)
-            if char and char in string.printable and char not in {"\r", "\n", "\t"}:
+            if char and char.isdigit():
                 self._buffer.append(char)
 
-    # def _is_valid_barcode(self, barcode: str) -> bool:
-    #     if not barcode:
-    #         return False
-    #     if not (self.min_length <= len(barcode) <= self.max_length):
-    #         return False
-    #     return bool(re.match(r"^[A-Za-z0-9_-]+$", barcode))
-    
     def _is_valid_barcode(self, barcode: str) -> bool:
-        return self.min_length <= len(barcode) <= self.max_length
+        return bool(re.fullmatch(r"\d{8}", barcode))
