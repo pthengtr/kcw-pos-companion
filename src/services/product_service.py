@@ -9,6 +9,17 @@ from supabase import Client, create_client
 from src.core.models import Product
 
 
+PRODUCT_SELECT = """
+BCODE,
+DESCR,
+MODEL,
+BRAND,
+PRICE1,
+HQ_LOCATION1,
+SYP_LOCATION1
+""".replace("\n", "").replace(" ", "")
+
+
 class ProductService:
     def __init__(self) -> None:
         load_dotenv()
@@ -24,7 +35,7 @@ class ProductService:
     def get_product_by_barcode(self, barcode: str) -> Optional[Product]:
         response = (
             self.client.table("v_pos_products_hq")
-            .select("BCODE, DESCR, MODEL, BRAND, PRICE1")
+            .select(PRODUCT_SELECT)
             .eq("BCODE", barcode)
             .limit(1)
             .execute()
@@ -37,19 +48,18 @@ class ProductService:
         return self._row_to_product(rows[0])
 
     def get_related_products(self, bcode: str) -> list[Product]:
-        # Step 1: find all groups for this bcode
         group_resp = (
             self.client.table("product_related_group_map")
             .select("related_group_id")
             .eq("bcode", bcode)
             .execute()
         )
-
         group_rows = group_resp.data or []
+
         if not group_rows:
             return []
 
-        group_ids = []
+        group_ids: list[str] = []
         seen_group_ids = set()
 
         for row in group_rows:
@@ -61,7 +71,6 @@ class ProductService:
         if not group_ids:
             return []
 
-        # Step 2: find all bcodes from all those groups
         related_resp = (
             self.client.table("product_related_group_map")
             .select("bcode, related_group_id")
@@ -69,13 +78,12 @@ class ProductService:
             .neq("bcode", bcode)
             .execute()
         )
-
         related_rows = related_resp.data or []
+
         if not related_rows:
             return []
 
-        # Step 3: deduplicate bcodes, first level only
-        related_bcodes = []
+        related_bcodes: list[str] = []
         seen_bcodes = set()
 
         for row in related_rows:
@@ -87,15 +95,14 @@ class ProductService:
         if not related_bcodes:
             return []
 
-        # Step 4: fetch product details
         product_resp = (
             self.client.table("v_pos_products_hq")
-            .select("BCODE, DESCR, MODEL, BRAND, PRICE1")
+            .select(PRODUCT_SELECT)
             .in_("BCODE", related_bcodes)
             .execute()
         )
-
         product_rows = product_resp.data or []
+
         if not product_rows:
             return []
 
@@ -104,7 +111,6 @@ class ProductService:
             for row in product_rows
         }
 
-        # Step 5: preserve discovered order
         ordered_products: list[Product] = []
         for code in related_bcodes:
             product = product_map.get(code)
@@ -120,6 +126,8 @@ class ProductService:
             model=row.get("MODEL"),
             brand=row.get("BRAND"),
             price1=self._to_float(row.get("PRICE1")),
+            hq_location1=self._to_text(row.get("HQ_LOCATION1")),
+            syp_location1=self._to_text(row.get("SYP_LOCATION1")),
         )
 
     @staticmethod
@@ -130,3 +138,10 @@ class ProductService:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _to_text(value) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None

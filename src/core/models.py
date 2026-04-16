@@ -9,3 +9,5 @@ class Product:
     model: Optional[str] = None
     brand: Optional[str] = None
     price1: Optional[float] = None
+    hq_location1: Optional[str] = None
+    syp_location1: Optional[str] = None

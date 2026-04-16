@@ -417,15 +417,23 @@ class MainWindow(QMainWindow):
         model = product.model or "-"
         brand = product.brand or "-"
         price = self._format_price(product.price1)
+        hq_location = product.hq_location1 or "-"
+        syp_location = product.syp_location1 or "-"
 
         return (
-            f"<div style='font-size:20px; font-weight:700; color:#111827;'>{descr}</div>"
-            f"<div style='font-size:12px; color:#6b7280; margin-top:4px;'>"
-            f"BCODE {product.bcode} • {model} • {brand}"
-            f"</div>"
-            f"<div style='font-size:22px; font-weight:700; color:#0a7f42; margin-top:10px;'>"
-            f"฿ {price}"
-            f"</div>"
+            f"""
+            <div style="font-size:15px; font-weight:700; color:#111827;">{descr}</div>
+            <div style="margin-top:4px; font-size:13px; color:#4b5563;">
+                BCODE {product.bcode} • {model} • {brand}
+            </div>
+            <div style="margin-top:8px; font-size:16px; font-weight:800; color:#111827;">
+                ฿ {price}
+            </div>
+            <div style="margin-top:8px; font-size:12px; color:#374151;">
+                <b>สนญ:</b> {hq_location}<br>
+                <b>สาขา:</b> {syp_location}
+            </div>
+            """
         )
 
     def _format_related_product(self, product: Product, idx: int) -> str:
@@ -433,21 +441,31 @@ class MainWindow(QMainWindow):
         model = product.model or "-"
         brand = product.brand or "-"
         price = self._format_price(product.price1)
+        hq_location = product.hq_location1 or "-"
+        syp_location = product.syp_location1 or "-"
 
         return (
-            f"<div style='font-size:12px; color:#6b7280;'>แนะนำ {idx + 1}</div>"
-            f"<div style='font-size:14px; font-weight:700; color:#111827; margin-top:2px;'>"
-            f"{product.bcode}"
-            f"</div>"
-            f"<div style='font-size:13px; color:#1f2937; margin-top:2px;'>"
-            f"{descr}"
-            f"</div>"
-            f"<div style='font-size:12px; color:#6b7280; margin-top:2px;'>"
-            f"{model} • {brand}"
-            f"</div>"
-            f"<div style='font-size:15px; font-weight:700; color:#0a7f42; margin-top:6px;'>"
-            f"฿ {price}"
-            f"</div>"
+            f"""
+            <div style="font-size:11px; font-weight:700; color:#6b7280;">
+                แนะนำ {idx + 1}
+            </div>
+            <div style="margin-top:2px; font-size:15px; font-weight:800; color:#111827;">
+                {product.bcode}
+            </div>
+            <div style="margin-top:4px; font-size:14px; font-weight:700; color:#111827;">
+                {descr}
+            </div>
+            <div style="margin-top:2px; font-size:12px; color:#4b5563;">
+                {model} • {brand}
+            </div>
+            <div style="margin-top:6px; font-size:13px; font-weight:700; color:#111827;">
+                ฿ {price}
+            </div>
+            <div style="margin-top:6px; font-size:12px; color:#374151;">
+                <b>สนญ:</b> {hq_location}<br>
+                <b>สาขา:</b> {syp_location}
+            </div>
+            """
         )
 
     def _clear_related_items_layout(self) -> None:
